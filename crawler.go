@@ -93,8 +93,15 @@ func (self *Crawler) Start() (error) {
 	return nil
 }
 
+func (self *Crawler) Stop() {
+	self.stopProcessing()
+}
+
 func (self *Crawler) loop() {
 	for {
+		if !self.IsProcessing() {
+			break
+		}
 		self.queueMux.Lock()
 		for uri, item := range self.queue {
 			if self.getCurrentWorkers() < self.maxWorkers {
