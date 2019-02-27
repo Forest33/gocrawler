@@ -11,15 +11,16 @@ import (
 	"strings"
 )
 
-type HttpResponse struct {
-	Uri           string
+// HTTPResponse struct
+type HTTPResponse struct {
+	URI           string
 	StatusCode    int
 	ContentLength int64
 	Header        http.Header
 	Body          []byte
 }
 
-func httpGET(uri string, user string, password string, header map[string]string, timeout int) (*HttpResponse, error) {
+func httpGET(uri string, user string, password string, header map[string]string, timeout int) (*HTTPResponse, error) {
 	client := &http.Client{
 		Timeout:       time.Duration(timeout) * time.Second,
 		CheckRedirect: nil,
@@ -63,8 +64,8 @@ func httpGET(uri string, user string, password string, header map[string]string,
 			return nil, err
 		}
 
-		r := &HttpResponse{
-			Uri:           uri,
+		r := &HTTPResponse{
+			URI:           uri,
 			StatusCode:    resp.StatusCode,
 			ContentLength: resp.ContentLength,
 			Header:        resp.Header,
@@ -72,23 +73,22 @@ func httpGET(uri string, user string, password string, header map[string]string,
 		}
 
 		return r, nil
-	} else {
-		return &HttpResponse{StatusCode: resp.StatusCode}, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 	}
+	return &HTTPResponse{StatusCode: resp.StatusCode}, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 }
 
-func prepareURI(cur_url, new_url *url.URL) (string) {
-	if new_url.Host != "" && new_url.Host != cur_url.Host {
+func prepareURI(curURL, newURL *url.URL) (string) {
+	if newURL.Host != "" && newURL.Host != curURL.Host {
 		return ""
 	}
 
-	scheme := new_url.Scheme
-	host := new_url.Host
+	scheme := newURL.Scheme
+	host := newURL.Host
 	if scheme == "" {
-		scheme = cur_url.Scheme
+		scheme = curURL.Scheme
 	}
 	if host == "" {
-		host = cur_url.Host
+		host = curURL.Host
 	}
 
 	if !strings.HasPrefix(scheme, "http") {
@@ -98,10 +98,9 @@ func prepareURI(cur_url, new_url *url.URL) (string) {
 	u := &url.URL{
 		Scheme:   scheme,
 		Host:     host,
-		Path:     new_url.EscapedPath(),
-		RawQuery: new_url.RawQuery,
+		Path:     newURL.EscapedPath(),
+		RawQuery: newURL.RawQuery,
 	}
 
 	return u.String()
 }
-

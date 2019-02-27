@@ -5,9 +5,10 @@ import (
 	"net/url"
 )
 
+// Crawler struct
 type Crawler struct {
 	uri             string
-	uriUrl          *url.URL
+	uriURL          *url.URL
 	user            string
 	password        string
 	header          map[string]string
@@ -21,11 +22,12 @@ type Crawler struct {
 	workersMux      sync.Mutex
 	queueMux        sync.Mutex
 	isProcessingMux sync.Mutex
-	callbackChan    chan *HttpResponse
-	callbackFunc    func(*HttpResponse)
+	callbackChan    chan *HTTPResponse
+	callbackFunc    func(*HTTPResponse)
 	isProcessing    bool
 }
 
+// New Crawler
 func New(uri string, user string, password string) (*Crawler) {
 	c := new(Crawler)
 	c.uri = uri
@@ -34,87 +36,96 @@ func New(uri string, user string, password string) (*Crawler) {
 	return c
 }
 
-func (self *Crawler) SetCallbackChan(callbackChan chan *HttpResponse) {
-	self.callbackChan = callbackChan
+// SetCallbackChan set callback chan
+func (c *Crawler) SetCallbackChan(callbackChan chan *HTTPResponse) {
+	c.callbackChan = callbackChan
 }
 
-func (self *Crawler) SetCallbackFunc(callbackFunc func(*HttpResponse)) {
-	self.callbackFunc = callbackFunc
+// SetCallbackFunc set callback function
+func (c *Crawler) SetCallbackFunc(callbackFunc func(*HTTPResponse)) {
+	c.callbackFunc = callbackFunc
 }
 
-func (self *Crawler) SetHeader(header map[string]string) {
-	self.header = header
+// SetHeader set HTTP header
+func (c *Crawler) SetHeader(header map[string]string) {
+	c.header = header
 }
 
-func (self *Crawler) SetTimeout(timeout int) {
-	self.timeout = timeout
+// SetTimeout set HTTP timeout in seconds
+func (c *Crawler) SetTimeout(timeout int) {
+	c.timeout = timeout
 }
 
-func (self *Crawler) SetMaxDepth(maxDepth int64) {
-	self.maxDepth = maxDepth
+// SetMaxDepth set max crawling depth
+func (c *Crawler) SetMaxDepth(maxDepth int64) {
+	c.maxDepth = maxDepth
 }
 
-func (self *Crawler) SetMaxWorkers(maxWorkers int) {
-	self.maxWorkers = maxWorkers
+// SetMaxWorkers set maximum number of threads to load
+func (c *Crawler) SetMaxWorkers(maxWorkers int) {
+	c.maxWorkers = maxWorkers
 }
 
-func (self *Crawler) IsProcessing() (bool) {
-	self.isProcessingMux.Lock()
-	defer self.isProcessingMux.Unlock()
-	return self.isProcessing
+// IsProcessing return loading status
+func (c *Crawler) IsProcessing() (bool) {
+	c.isProcessingMux.Lock()
+	defer c.isProcessingMux.Unlock()
+	return c.isProcessing
 }
 
-func (self *Crawler) startProcessing() {
-	self.isProcessingMux.Lock()
-	defer self.isProcessingMux.Unlock()
-	self.isProcessing = true
+func (c *Crawler) startProcessing() {
+	c.isProcessingMux.Lock()
+	defer c.isProcessingMux.Unlock()
+	c.isProcessing = true
 }
 
-func (self *Crawler) stopProcessing() {
-	self.isProcessingMux.Lock()
-	defer self.isProcessingMux.Unlock()
-	self.isProcessing = false
+func (c *Crawler) stopProcessing() {
+	c.isProcessingMux.Lock()
+	defer c.isProcessingMux.Unlock()
+	c.isProcessing = false
 }
 
-func (self *Crawler) Start() (error) {
+// Start start download
+func (c *Crawler) Start() (error) {
 	var err error
-	self.uriUrl, err = url.Parse(self.uri)
+	c.uriURL, err = url.Parse(c.uri)
 	if err != nil {
 		return err
 	}
 
-	self.queue = make(map[string]int64, 100)
-	self.loadedQueue = make(map[string]bool, 100)
-	self.startProcessing()
+	c.queue = make(map[string]int64, 100)
+	c.loadedQueue = make(map[string]bool, 100)
+	c.startProcessing()
 
-	self.addToQueue(self.uri, 0)
-	go self.loop()
+	c.addToQueue(c.uri, 0)
+	go c.loop()
 
 	return nil
 }
 
-func (self *Crawler) Stop() {
-	self.stopProcessing()
+// Stop stop download
+func (c *Crawler) Stop() {
+	c.stopProcessing()
 }
 
-func (self *Crawler) loop() {
+func (c *Crawler) loop() {
 	for {
-		if !self.IsProcessing() {
+		if !c.IsProcessing() {
 			break
 		}
-		self.queueMux.Lock()
-		for uri, item := range self.queue {
-			if self.getCurrentWorkers() < self.maxWorkers {
-				delete(self.queue, uri)
-				self.startWorker(uri, item)
+		c.queueMux.Lock()
+		for uri, item := range c.queue {
+			if c.getCurrentWorkers() < c.maxWorkers {
+				delete(c.queue, uri)
+				c.startWorker(uri, item)
 			}
 		}
-		if len(self.queue) == 0 && self.getCurrentWorkers() == 0 {
-			self.stopProcessing()
-			self.queueMux.Unlock()
+		if len(c.queue) == 0 && c.getCurrentWorkers() == 0 {
+			c.stopProcessing()
+			c.queueMux.Unlock()
 			return
 		}
-		self.queueMux.Unlock()
+		c.queueMux.Unlock()
 	}
 }
 
