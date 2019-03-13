@@ -3,12 +3,15 @@
 To install gocrawler package, you need to install Go and set your Go workspace first.
 
 1. Download and install it:
-
-       $ go get -u github.com/Forest33/gocrawler
+```sh
+$ go get -u github.com/Forest33/gocrawler
+```
 
 2. Import it in your code:
 
-       import "github.com/Forest33/gocrawler"
+```sh
+import "github.com/Forest33/gocrawler"
+```
 
 Example using the callback channnel
 
