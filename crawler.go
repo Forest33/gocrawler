@@ -7,24 +7,51 @@ import (
 
 // Crawler struct
 type Crawler struct {
-	uri             string
-	uriURL          *url.URL
-	user            string
-	password        string
-	header          map[string]string
-	timeout         int
-	maxDepth        int64
-	curDepth        int64
-	maxWorkers      int
-	curWorkers      int
-	queue           map[string]int64
-	loadedQueue     map[string]bool
-	workersMux      sync.Mutex
-	queueMux        sync.Mutex
-	isProcessingMux sync.Mutex
-	callbackChan    chan *HTTPResponse
-	callbackFunc    func(*HTTPResponse)
-	isProcessing    bool
+	uri                  string
+	uriURL               *url.URL
+	user                 string
+	password             string
+	header               map[string]string
+	timeout              int
+	maxDepth             int64
+	curDepth             int64
+	maxWorkers           int
+	curWorkers           int
+	isLoadImages         bool
+	queue                map[string]int64
+	loadedQueue          map[string]bool
+	loadedImages         map[string]bool
+	imageWorkersChan     []chan *imageRequest
+	imageWorkersStopChan []chan bool
+	imageWorkers         int
+	workersMux           sync.Mutex
+	queueMux             sync.Mutex
+	isProcessingMux      sync.Mutex
+	imagesMux            sync.Mutex
+	callbackChan         chan *CrawlerResponse
+	callbackFunc         func(*CrawlerResponse)
+	isProcessing         bool
+}
+
+// Image struct
+type Image struct {
+	URI     string
+	Payload *HTTPResponse
+	Err     error
+}
+
+// imageRequest struct
+type imageRequest struct {
+	url  string
+	cbCh chan *Image
+}
+
+// CrawlerResponse struct
+type CrawlerResponse struct {
+	URI     string
+	Payload *HTTPResponse
+	Images  []*Image
+	Err     error
 }
 
 // New Crawler
@@ -33,16 +60,18 @@ func New(uri string, user string, password string) (*Crawler) {
 	c.uri = uri
 	c.user = user
 	c.password = password
+	c.maxWorkers = 1
+	c.imageWorkers = 1
 	return c
 }
 
 // SetCallbackChan set callback chan
-func (c *Crawler) SetCallbackChan(callbackChan chan *HTTPResponse) {
+func (c *Crawler) SetCallbackChan(callbackChan chan *CrawlerResponse) {
 	c.callbackChan = callbackChan
 }
 
 // SetCallbackFunc set callback function
-func (c *Crawler) SetCallbackFunc(callbackFunc func(*HTTPResponse)) {
+func (c *Crawler) SetCallbackFunc(callbackFunc func(*CrawlerResponse)) {
 	c.callbackFunc = callbackFunc
 }
 
@@ -66,6 +95,16 @@ func (c *Crawler) SetMaxWorkers(maxWorkers int) {
 	c.maxWorkers = maxWorkers
 }
 
+// SetLoadImages load or not images
+func (c *Crawler) SetLoadImages(isLoadImages bool) {
+	c.isLoadImages = isLoadImages
+}
+
+// SetImagesWorkers set number of threads to load images
+func (c *Crawler) SetImagesWorkers(imageWorkers int) {
+	c.imageWorkers = imageWorkers
+}
+
 // IsProcessing return loading status
 func (c *Crawler) IsProcessing() (bool) {
 	c.isProcessingMux.Lock()
@@ -82,6 +121,13 @@ func (c *Crawler) startProcessing() {
 func (c *Crawler) stopProcessing() {
 	c.isProcessingMux.Lock()
 	defer c.isProcessingMux.Unlock()
+
+	if c.isLoadImages {
+		for i := 0; i < c.imageWorkers; i ++ {
+			c.imageWorkersStopChan[i] <- true
+		}
+	}
+
 	c.isProcessing = false
 }
 
@@ -93,8 +139,19 @@ func (c *Crawler) Start() (error) {
 		return err
 	}
 
+	if c.isLoadImages {
+		for i := 0; i < c.imageWorkers; i ++ {
+			ch := make(chan *imageRequest, c.imageWorkers*10)
+			stopCh := make(chan bool)
+			c.imageWorkersChan = append(c.imageWorkersChan, ch)
+			c.imageWorkersStopChan = append(c.imageWorkersStopChan, stopCh)
+			go c.imageWorker(ch, stopCh)
+		}
+	}
+
 	c.queue = make(map[string]int64, 100)
-	c.loadedQueue = make(map[string]bool, 100)
+	c.loadedQueue = make(map[string]bool, 1000)
+	c.loadedImages = make(map[string]bool, 1000)
 	c.startProcessing()
 
 	c.addToQueue(c.uri, 0)
@@ -127,5 +184,5 @@ func (c *Crawler) loop() {
 		}
 		c.queueMux.Unlock()
 	}
+	c.stopProcessing()
 }
-

@@ -77,8 +77,8 @@ func httpGET(uri string, user string, password string, header map[string]string,
 	return &HTTPResponse{StatusCode: resp.StatusCode}, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 }
 
-func prepareURI(curURL, newURL *url.URL) (string) {
-	if newURL.Host != "" && newURL.Host != curURL.Host {
+func prepareURI(curURL, newURL *url.URL, checkBaseURL bool) (string) {
+	if checkBaseURL && newURL.Host != "" && newURL.Host != curURL.Host {
 		return ""
 	}
 
@@ -102,5 +102,5 @@ func prepareURI(curURL, newURL *url.URL) (string) {
 		RawQuery: newURL.RawQuery,
 	}
 
-	return u.String()
+	return curURL.ResolveReference(u).String()
 }

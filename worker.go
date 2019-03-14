@@ -3,9 +3,9 @@ package gocrawler
 import (
 	"sync/atomic"
 	"github.com/PuerkitoBio/goquery"
-	"bytes"
 	"strings"
 	"net/url"
+	"bytes"
 )
 
 func (c *Crawler) addToQueue(uri string, depth int64) {
@@ -55,20 +55,44 @@ func (c *Crawler) worker(uri string, depth int64) {
 		c.loadedQueue[uri] = true
 	}()
 
-	response, err := httpGET(uri, c.user, c.password, c.header, c.timeout)
-	if err != nil {
-		return
+	var (
+		response *HTTPResponse
+		doc      *goquery.Document
+		err      error
+	)
+
+	response, err = httpGET(uri, c.user, c.password, c.header, c.timeout)
+
+	if err == nil {
+		doc, err = goquery.NewDocumentFromReader(bytes.NewReader(response.Body))
+		if err != nil {
+			return
+		}
+	}
+
+	images := []*Image{}
+	if err == nil && c.isLoadImages {
+		images, err = c.loadImages(doc)
 	}
 
 	if c.callbackChan != nil {
-		c.callbackChan <- response
+		c.callbackChan <- &CrawlerResponse{
+			URI:     uri,
+			Payload: response,
+			Images:  images,
+			Err:     err,
+		}
 	}
 
 	if c.callbackFunc != nil {
-		c.callbackFunc(response)
+		c.callbackFunc(&CrawlerResponse{
+			URI:     uri,
+			Payload: response,
+			Images:  images,
+			Err:     err,
+		})
 	}
 
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(response.Body))
 	if err != nil {
 		return
 	}
@@ -79,12 +103,11 @@ func (c *Crawler) worker(uri string, depth int64) {
 			uri = strings.TrimSpace(uri)
 			u, err := url.Parse(uri)
 			if err == nil {
-				link := prepareURI(c.uriURL, u)
+				link := prepareURI(c.uriURL, u, true)
 				if link != "" {
-					c.addToQueue(link, depth + 1)
+					c.addToQueue(link, depth+1)
 				}
 			}
 		}
 	})
 }
-
